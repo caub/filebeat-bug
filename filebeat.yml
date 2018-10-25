@@ -1,0 +1,57 @@
+filebeat.inputs:
+  - type: docker
+    containers:
+      path: "/var/lib/docker/containers"
+      ids:
+        - "*"
+    json.keys_under_root: true
+    json.ignore_decoding_error: true
+    tail_files: true
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  pipeline: request-logs
+  # index: "filebeat-*"
+
+setup.kibana.host: "kibana:5601"
+
+setup.template.name: "filebeat"
+# setup.template.fields: "fields.yml"
+setup.template.overwrite: true
+setup.template.append_fields:
+  - name: err_msg
+    type: keyword
+  - name: err_stack
+    type: text
+  - name: err_data
+    type: text
+  - name: req.duration
+    type: double
+  - name: res.status
+    type: integer
+  - name: res.length
+    type: integer
+
+# set this off, because it puts many templates for visualizations and dashboards (quite noisy)
+setup.dashboards.enabled: false
+setup.dashboards.index: "filebeat-*"
+setup.dashboards.retry.enabled: true
+setup.dashboards.retry.interval: 10
+
+processors:
+  # only keep docker.container.image and docker.container.name
+  # related issue to simplify those 2 next lines: https://github.com/elastic/beats/issues/8049
+  - add_docker_metadata: ~
+  - drop_fields:
+      fields: ["input.type", "prospector.type", "docker.container.id", "docker.container.labels.com.docker.stack.namespace", "docker.container.labels.com.docker.swarm.node.id", "docker.container.labels.com.docker.swarm.service.id", "docker.container.labels.com.docker.swarm.service.name", "docker.container.labels.com.docker.swarm.task.id", "docker.container.labels.com.docker.swarm.task.name", "docker.container.labels.com.docker.swarm.task.value"]
+  - drop_event:
+      when:
+        regexp:
+          docker.container.image: '^docker\.elastic\.co\/'
+
+xpack.monitoring.enabled: true
+
+backoff.init: 20s
+
+logging.level: warning
+logging.metrics.enabled: false

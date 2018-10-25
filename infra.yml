@@ -1,0 +1,61 @@
+version: '3.6'
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.4.0
+    deploy:
+      placement:
+        constraints: [node.hostname == swarm-dev-2]
+    environment:
+      # - bootstrap.memory_lock=true # https://github.com/moby/moby/pull/37701/files
+      - 'ES_JAVA_OPTS=-Xms512m -Xmx512m'
+      # - http.host=0.0.0.0
+      # - xpack.security.enabled=false
+      - logger.deprecation.level=error
+    ports:
+      - "9201:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+     
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:6.4.0
+    user: root
+    depends_on: ["elasticsearch", "kibana"]
+    deploy:
+      mode: global
+    configs:
+      - source: filebeat-bug.yml
+        target: /usr/share/filebeat/filebeat.yml
+    volumes:
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/usr/local/bin/wait-for:/usr/local/bin/wait-for"
+    command: bash -c 'wait-for elasticsearch:9200; wait-for kibana:5601; filebeat --strict.perms=false -e'
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:6.4.0
+    depends_on:
+      - elasticsearch
+    environment:
+      - KIBANA_DEFAULTAPPID=dashboards
+      - LOGGING_QUIET=true
+      - SERVER_SSL_ENABLED=false
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+    ports:
+      - "5602:5601"
+
+  spammer:
+    image: mhart/alpine-node
+    deploy:
+      replicas: 3
+    command: node -p 'let i=1;setInterval(() => console.log("spammer", i++), 200)'
+
+configs:
+  filebeat-bug.yml:
+    external: true
+    # file: filebeat.yml
+
+volumes:
+  esdata:
+    name: esdata
