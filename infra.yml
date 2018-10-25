@@ -12,6 +12,7 @@ services:
       - "9201:9200"
     volumes:
       - esdata:/usr/share/elasticsearch/data
+    dns: ''
      
   filebeat:
     image: docker.elastic.co/beats/filebeat:6.4.0
@@ -27,6 +28,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/usr/local/bin/wait-for:/usr/local/bin/wait-for"
     command: bash -c 'wait-for elasticsearch:9200; wait-for kibana:5601; filebeat --strict.perms=false -e'
+    dns: ''
 
   kibana:
     image: docker.elastic.co/kibana/kibana:6.4.0
@@ -38,12 +40,14 @@ services:
       - SERVER_SSL_ENABLED=false
     ports:
       - "5602:5601"
+    dns: ''
 
   spammer:
     image: mhart/alpine-node
     deploy:
       replicas: 2
     command: node -p 'let i=1;setInterval(() => console.log("spammer", i++), 200)'
+    dns: ''
 
 configs:
   filebeat-bug.yml:
